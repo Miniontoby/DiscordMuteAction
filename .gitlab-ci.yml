@@ -1,0 +1,38 @@
+# Build JAVA applications using Apache Maven (http://maven.apache.org)
+
+variables:
+  MAVEN_OPTS: "-Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true"
+  # `installAtEnd` and `deployAtEnd` are only effective with recent version of the corresponding plugins.
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true -Dmaven.test.skip"
+
+image: maven:3-jdk-11
+
+cache:
+  paths:
+    - .m2/repository
+
+# For merge requests do not `deploy` but only run `verify`.
+# See https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
+.verify: &verify
+  stage: test
+  script:
+    - 'mvn $MAVEN_CLI_OPTS verify'
+  except:
+    variables:
+      - $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Verify merge requests using JDK8
+verify:jdk11:
+  <<: *verify
+
+build:jdk11:
+  stage: build
+  script:
+    - if [ ! -f ci_settings.xml ];
+        then echo "CI settings missing\! If deploying to GitLab Maven Repository, please see https://docs.gitlab.com/ee/user/packages/maven_repository/index.html#create-maven-packages-with-gitlab-cicd for instructions.";
+      fi
+    - 'mvn $MAVEN_CLI_OPTS clean package -s ci_settings.xml'
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
